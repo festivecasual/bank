@@ -16,53 +16,50 @@ def hashpw(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
 
-def require_authentication(req, resp, resource, params, usertype=None):
-    def fail(message='', status=falcon.HTTP_UNAUTHORIZED):
-        resp.status = status
-        resp.media = {'error': message}
-        resp.complete = True
+class TokenAuthentication:
+    def process_resource(self, req, resp, resource, params):
         req.context.username = None
         req.context.usertype = None
 
-    try:
-        auth_method, auth_token = req.auth.split(' ', 1)
-    except ValueError:
-        fail('Invalid or missing Authentication header')
-        return
-    
-    if auth_method != "Bearer":
-        fail('Invalid authentication method')
-        return
+        if not req.auth:
+            return
 
-    try:
-        token = jwt.decode(auth_token, jwt_secret, algorithms=['HS256'])
-        token_username = token['username']
-        token_usertype = token['usertype']
-    except:
-        fail('Invalid token')
-        return
+        try:
+            auth_method, auth_token = req.auth.split(' ', 1)
+        except ValueError:
+            raise falcon.HTTPUnauthorized(description='Invalid authentication header')
 
-    # Do we have a specific type of user we're looking for, and this user isn't of that type?
-    if usertype and token_usertype != usertype:
-        fail(message='User not authorized to access this resource', status=falcon.HTTP_FORBIDDEN)
-        return
+        if auth_method != "Bearer":
+            raise falcon.HTTPUnauthorized(description='Invalid authentication method')
 
-    # Is the JWT's user still valid?
-    con = sqlite3.connect(db_path)
-    cur = con.cursor()
-    cur.execute('''SELECT username FROM users WHERE username = ? AND usertype = ?''', (token_username, token_usertype))
-    if not cur.fetchone():
-        fail('Valid token with an invalid user')
-        return
+        try:
+            token = jwt.decode(auth_token, jwt_secret, algorithms=['HS256'])
+            token_username = token['username']
+            token_usertype = token['usertype']
+        except:
+            raise falcon.HTTPUnauthorized(description='Invalid token')
 
-    req.context.username = token_username
-    req.context.usertype = token_usertype
-    
-    con.close()
+        # Is the user named in the JWT still valid?
+        con = sqlite3.connect(db_path)
+        cur = con.cursor()
+        cur.execute('''SELECT username FROM users WHERE username = ? AND usertype = ?''', (token_username, token_usertype))
+        if not cur.fetchone():
+            raise falcon.HTTPUnauthorized(description='Valid token with an invalid user')
+        con.close()
+
+        req.context.username = token_username
+        req.context.usertype = token_usertype
+
+
+def require_authentication(req, resp, resource, params, usertype=None):
+    if not req.context.username:
+        raise falcon.HTTPUnauthorized(description='No authentication credentials provided')
+    if usertype and usertype != req.context.usertype:
+        raise falcon.HTTPForbidden(description='User not authorized to make this request')
 
 
 class SessionResource:
-    def on_post(self, req, resp):
+    def on_get(self, req, resp):
         login = req.get_media()
         username, password = login.get('username'), login.get('password')
 
@@ -72,8 +69,7 @@ class SessionResource:
 
         row = cur.fetchone()
         if row is None:
-            resp.status = falcon.HTTP_UNAUTHORIZED
-            resp.media = {'error': 'Invalid user or password'}
+            raise falcon.HTTPUnauthorized(description='Invalid user or password')
         else:
             if bcrypt.checkpw(password.encode('utf-8'), row[0]):
                 token = jwt.encode({
@@ -83,8 +79,7 @@ class SessionResource:
                 }, jwt_secret, algorithm='HS256')
                 resp.media = {'token': token}
             else:
-                resp.status = falcon.HTTP_UNAUTHORIZED
-                resp.media = {'error': 'Invalid user or password'}
+                raise falcon.HTTPUnauthorized(description='Invalid user or password')
         
         con.close()
 
@@ -92,16 +87,13 @@ class SessionResource:
 class TransactionResource:
     @falcon.before(require_authentication, 'standard')
     def on_get(self, req, resp):
-        if not req.context.username:
-            return
-
         print('better have auth!', resp.status)
         print(req.context.username)
 
 
-app = falcon.App()
+app = falcon.App(middleware=[TokenAuthentication()])
 app.add_route('/session', SessionResource())
-app.add_route('/transaction', TransactionResource())
+app.add_route('/transaction', TransactionResource(), authenticated=True, usertype='standard')
 
 
 if __name__ == '__main__':
