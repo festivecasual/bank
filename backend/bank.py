@@ -87,9 +87,7 @@ class SessionResource:
 class TransactionResource:
     @falcon.before(require_authentication, 'standard')
     def on_get(self, req, resp):
-        print('better have auth!', resp.status)
-        print(req.context.username)
-
+        pass
 
 app = falcon.App(middleware=[TokenAuthentication()])
 app.add_route('/session', SessionResource())
@@ -108,6 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--add', action='store_true', help='Add a new user')
     parser.add_argument('--admin', action='store_true', help='Make new user an administrator')
     parser.add_argument('--testset', action='store_true', help='Insert test data into the database')
+    parser.add_argument('--console', action='store_true', help='Connect to database and launch a SQL REPL')
     args = parser.parse_args()
 
     if args.init:
@@ -131,6 +130,15 @@ if __name__ == '__main__':
     if args.testset:
         cur.execute('''INSERT INTO users (username, password, usertype) VALUES (?, ?, ?)''', ('user', hashpw('password'), 'standard'))
         cur.execute('''INSERT INTO users (username, password, usertype) VALUES (?, ?, ?)''', ('admin', hashpw('password'), 'admin'))
+
+    if args.console:
+        print('Submit a blank line to exit')
+        while cmd := input('SQL> '):
+            cur.execute(cmd)
+            result = cur.fetchall()
+            print(f'[Returned ${len(result)} row(s)]')
+            for row in result:
+                print('   |',' | '.join([str(v) for v in row]), '| ')
 
     con.commit()
     con.close()
