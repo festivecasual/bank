@@ -1,0 +1,96 @@
+import shutil
+import os
+import sqlite3
+import time
+
+from falcon import testing
+
+import bank
+
+
+class BankTestCase(testing.TestCase):
+    def setUp(self):
+        super().setUp()
+
+        shutil.copyfile(bank.db_path, bank.db_path + '-original')
+        self.app = bank.create_app()
+
+    def tearDown(self):
+        shutil.copyfile(bank.db_path + '-original', bank.db_path)
+        os.unlink(bank.db_path + '-original')
+
+
+class TestLogin(BankTestCase):
+    def test_good(self):
+        result = self.simulate_get('/session?username=fresh&password=password_f')
+        self.assertEqual(result.status_code, 200)
+
+    def test_bad_username(self):
+        result = self.simulate_get('/session?username=user&password=password_f')
+        self.assertEqual(result.status_code, 401)
+
+    def test_bad_password(self):
+        result = self.simulate_get('/session?username=admin&password=password_f')
+        self.assertEqual(result.status_code, 401)
+
+
+class TestAuthorization(BankTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.throwaway_token = self.simulate_get('/session?username=fresh&password=password_f').json['token']
+        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
+        self.admin_token = self.simulate_get('/session?username=admin&password=password_a').json['token']
+
+    def test_good_user(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
+        self.assertEqual(result.status_code, 200)
+
+    def test_good_user_wrong_type(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.admin_token})
+        self.assertEqual(result.status_code, 403)
+
+    def test_bad_token(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.admin_token[:-4] + 'abcd'})
+        self.assertEqual(result.status_code, 401)
+
+    def test_malformed_auth_header(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'abcdefg'})
+        self.assertEqual(result.status_code, 401)
+
+    def test_non_bearer_auth_header(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Digest abcdef'})
+        self.assertEqual(result.status_code, 401)
+
+    def test_good_token_deleted_user(self):
+        con = sqlite3.connect(bank.db_path)
+        cur = con.cursor()
+        cur.execute("DELETE FROM users WHERE username = 'fresh'")
+        con.commit()
+        con.close()
+
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.throwaway_token})
+        self.assertEqual(result.status_code, 401)
+
+class TestLogout(BankTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
+
+    def test_logout(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
+        self.assertEqual(result.status_code, 200)
+
+        result = self.simulate_delete('/session', headers={'Authorization': 'Bearer ' + self.user_token})
+        self.assertEqual(result.status_code, 200)
+        
+        time.sleep(2)
+        
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
+        self.assertEqual(result.status_code, 401)
+
+        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
+
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
+        self.assertEqual(result.status_code, 200)
