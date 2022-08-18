@@ -60,8 +60,7 @@ def require_authentication(req, resp, resource, params, usertype=None):
 
 class SessionResource:
     def on_get(self, req, resp):
-        login = req.get_media()
-        username, password = login.get('username'), login.get('password')
+        username, password = req.params.get('username'), req.params.get('password')
 
         con = sqlite3.connect(db_path)
         cur = con.cursor()
@@ -88,6 +87,7 @@ class TransactionResource:
     @falcon.before(require_authentication, 'standard')
     def on_get(self, req, resp):
         pass
+
 
 app = falcon.App(middleware=[TokenAuthentication()])
 app.add_route('/session', SessionResource())
