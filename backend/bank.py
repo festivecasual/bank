@@ -70,7 +70,7 @@ class SessionResource:
 
         con = sqlite3.connect(db_path)
         cur = con.cursor()
-        cur.execute('SELECT password, usertype FROM users WHERE username = ?', (username,))
+        cur.execute('''SELECT password, usertype FROM users WHERE username = ?''', (username,))
 
         row = cur.fetchone()
         if row is None:
@@ -92,7 +92,7 @@ class SessionResource:
     def on_delete(self, req, resp):
         con = sqlite3.connect(db_path)
         cur = con.cursor()
-        cur.execute('UPDATE users SET cutoff = ? WHERE username = ?', (current_timestamp(), req.context.username))
+        cur.execute('''UPDATE users SET cutoff = ? WHERE username = ?''', (current_timestamp(), req.context.username))
         con.commit()
         con.close()
 
@@ -103,6 +103,27 @@ class TransactionResource:
         con = sqlite3.connect(db_path)
         cur = con.cursor()
 
+        cur.execute('''SELECT txndate, memo, amount FROM trans WHERE username = ? ORDER BY txndate DESC''', (req.context.username, ))
+        resp.media = {
+            'cols': ['txndate', 'memo', 'amount'],
+            'data': cur.fetchall(),
+        }
+
+        con.close()
+
+
+class BalanceResource:
+    @falcon.before(require_authentication, 'standard')
+    def on_get(self, req, resp):
+        con = sqlite3.connect(db_path)
+        cur = con.cursor()
+
+        cur.execute('''SELECT SUM(amount) FROM trans WHERE username = ?''', (req.context.username, ))
+        balance = cur.fetchone()[0] or 0
+        resp.media = {
+            'balance': balance,
+        }
+
         con.close()
 
 
@@ -110,6 +131,7 @@ def create_app():
     app = falcon.App(middleware=[TokenAuthentication()])
     app.add_route('/session', SessionResource())
     app.add_route('/transaction', TransactionResource())
+    app.add_route('/balance', BalanceResource())
     return app
 
 

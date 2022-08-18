@@ -15,6 +15,10 @@ class BankTestCase(testing.TestCase):
         shutil.copyfile(bank.db_path, bank.db_path + '-original')
         self.app = bank.create_app()
 
+        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
+        self.throwaway_token = self.simulate_get('/session?username=fresh&password=password_f').json['token']
+        self.admin_token = self.simulate_get('/session?username=admin&password=password_a').json['token']
+
     def tearDown(self):
         shutil.copyfile(bank.db_path + '-original', bank.db_path)
         os.unlink(bank.db_path + '-original')
@@ -35,13 +39,6 @@ class TestLogin(BankTestCase):
 
 
 class TestAuthorization(BankTestCase):
-    def setUp(self):
-        super().setUp()
-
-        self.throwaway_token = self.simulate_get('/session?username=fresh&password=password_f').json['token']
-        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
-        self.admin_token = self.simulate_get('/session?username=admin&password=password_a').json['token']
-
     def test_good_user(self):
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
         self.assertEqual(result.status_code, 200)
@@ -72,12 +69,8 @@ class TestAuthorization(BankTestCase):
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.throwaway_token})
         self.assertEqual(result.status_code, 401)
 
+
 class TestLogout(BankTestCase):
-    def setUp(self):
-        super().setUp()
-
-        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
-
     def test_logout(self):
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
         self.assertEqual(result.status_code, 200)
@@ -94,3 +87,23 @@ class TestLogout(BankTestCase):
 
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
         self.assertEqual(result.status_code, 200)
+
+
+class TestTransaction(BankTestCase):
+    def test_valid_trans(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
+        self.assertEqual(len(result.json['data']), 3)
+
+    def test_no_trans(self):
+        result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.throwaway_token})
+        self.assertEqual(len(result.json['data']), 0)
+
+
+class TestBalance(BankTestCase):
+    def test_with_trans(self):
+        result = self.simulate_get('/balance', headers={'Authorization': 'Bearer ' + self.user_token})
+        self.assertEqual(result.json['balance'], 22.08)
+
+    def test_no_trans(self):
+        result = self.simulate_get('/balance', headers={'Authorization': 'Bearer ' + self.throwaway_token})
+        self.assertEqual(result.json['balance'], 0)
