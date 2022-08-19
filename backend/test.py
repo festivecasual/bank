@@ -15,9 +15,12 @@ class BankTestCase(testing.TestCase):
         shutil.copyfile(bank.db_path, bank.db_path + '-original')
         self.app = bank.create_app()
 
-        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
-        self.throwaway_token = self.simulate_get('/session?username=fresh&password=password_f').json['token']
-        self.admin_token = self.simulate_get('/session?username=admin&password=password_a').json['token']
+        self.user_token = self.login('seasoned', 'password_s')
+        self.throwaway_token = self.login('fresh', 'password_f')
+        self.admin_token = self.login('admin', 'password_a')
+
+    def login(self, username, password):
+        return self.simulate_post('/session', json={'username': username, 'password': password}).json['token']
 
     def tearDown(self):
         shutil.copyfile(bank.db_path + '-original', bank.db_path)
@@ -26,16 +29,20 @@ class BankTestCase(testing.TestCase):
 
 class TestLogin(BankTestCase):
     def test_good(self):
-        result = self.simulate_get('/session?username=fresh&password=password_f')
+        result = self.simulate_post('/session', json={'username': 'fresh', 'password': 'password_f'})
         self.assertEqual(result.status_code, 200)
 
     def test_bad_username(self):
-        result = self.simulate_get('/session?username=user&password=password_f')
+        result = self.simulate_post('/session', json={'username': 'user', 'password': 'password_f'})
         self.assertEqual(result.status_code, 401)
 
     def test_bad_password(self):
-        result = self.simulate_get('/session?username=admin&password=password_f')
+        result = self.simulate_post('/session', json={'username': 'admin', 'password': 'password_f'})
         self.assertEqual(result.status_code, 401)
+    
+    def test_blank_body(self):
+        result = self.simulate_post('/session')
+        self.assertEqual(result.status_code, 400)
 
 
 class TestAuthorization(BankTestCase):
@@ -83,7 +90,7 @@ class TestLogout(BankTestCase):
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
         self.assertEqual(result.status_code, 401)
 
-        self.user_token = self.simulate_get('/session?username=seasoned&password=password_s').json['token']
+        self.user_token = self.login('seasoned', 'password_s')
 
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.user_token})
         self.assertEqual(result.status_code, 200)

@@ -65,8 +65,9 @@ def require_authentication(req, resp, resource, params, usertype=None):
 
 
 class SessionResource:
-    def on_get(self, req, resp):
-        username, password = req.params.get('username'), req.params.get('password')
+    def on_post(self, req, resp):
+        postdata = req.get_media()
+        username, password = postdata.get('username'), postdata.get('password')
 
         con = sqlite3.connect(db_path)
         cur = con.cursor()

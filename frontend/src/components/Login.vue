@@ -7,20 +7,27 @@ const username = ref(null)
 const password = ref(null)
 
 function handleLogin() {
-    fetch(`/api/session?username=${username.value.value}&password=${password.value.value}`)
-        .then((response) => {
-            if (response.ok) {
-                return response.json()
-            } else {
-                throw new Error('Login Unsuccessful')
-            }
+    fetch('/api/session', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            'username': username.value.value,
+            'password': password.value.value
         })
-        .then((json) => {
-            emit('login', json.token)
-        })
-        .catch((e) => {
-            alert('wups')
-        })
+    }).then((response) => {
+        if (response.ok) {
+            return response.json()
+        } else {
+            throw new Error('Login Unsuccessful')
+        }
+    }).then((json) => {
+        emit('login', json.token)
+    }).catch((e) => {
+        alert('wups')
+    })
 }
 </script>
 
