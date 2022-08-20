@@ -77,13 +77,18 @@ class SessionResource:
         if row is None:
             raise falcon.HTTPUnauthorized(description='Invalid user or password')
         else:
+            usertype = row[1]
             if bcrypt.checkpw(password.encode('utf-8'), row[0]):
                 token = jwt.encode({
                     'username': username,
-                    'usertype': row[1],
+                    'usertype': usertype,
                     'created': current_timestamp(),
                 }, jwt_secret, algorithm='HS256')
-                resp.media = {'token': token}
+                resp.media = {
+                    'token': token,
+                    'username': username,
+                    'usertype': usertype,
+                }
             else:
                 raise falcon.HTTPUnauthorized(description='Invalid user or password')
         
