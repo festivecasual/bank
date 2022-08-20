@@ -104,13 +104,3 @@ class TestTransaction(BankTestCase):
     def test_no_trans(self):
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.throwaway_token})
         self.assertEqual(len(result.json['data']), 0)
-
-
-class TestBalance(BankTestCase):
-    def test_with_trans(self):
-        result = self.simulate_get('/balance', headers={'Authorization': 'Bearer ' + self.user_token})
-        self.assertEqual(result.json['balance'], 22.08)
-
-    def test_no_trans(self):
-        result = self.simulate_get('/balance', headers={'Authorization': 'Bearer ' + self.throwaway_token})
-        self.assertEqual(result.json['balance'], 0)

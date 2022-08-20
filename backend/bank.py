@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import datetime
+import itertools
 
 import falcon
 import jwt
@@ -109,25 +110,17 @@ class TransactionResource:
         con = sqlite3.connect(db_path)
         cur = con.cursor()
 
-        cur.execute('''SELECT txndate, memo, amount FROM trans WHERE username = ? ORDER BY txndate DESC''', (req.context.username, ))
-        resp.media = {
-            'cols': ['txndate', 'memo', 'amount'],
-            'data': cur.fetchall(),
-        }
-
-        con.close()
-
-
-class BalanceResource:
-    @falcon.before(require_authentication, 'standard')
-    def on_get(self, req, resp):
-        con = sqlite3.connect(db_path)
-        cur = con.cursor()
-
         cur.execute('''SELECT SUM(amount) FROM trans WHERE username = ?''', (req.context.username, ))
-        balance = cur.fetchone()[0] or 0
+        total = cur.fetchone()[0]
+
+        cur.execute('''SELECT txndate, memo, amount FROM trans WHERE username = ? ORDER BY txndate DESC''', (req.context.username, ))
+        rows = cur.fetchall()
+
+        running = itertools.accumulate(rows, lambda acc, current: acc - current[2], initial=total)
+
         resp.media = {
-            'balance': balance,
+            'cols': ['txndate', 'memo', 'amount', 'balance'],
+            'data': [(*r, run) for r, run in zip(rows, running)],
         }
 
         con.close()
@@ -137,7 +130,6 @@ def create_app():
     app = falcon.App(middleware=[TokenAuthentication()])
     app.add_route('/session', SessionResource())
     app.add_route('/transaction', TransactionResource())
-    app.add_route('/balance', BalanceResource())
     return app
 
 
@@ -200,7 +192,7 @@ if __name__ == '__main__':
             cur.execute(cmd)
             con.commit()
             result = cur.fetchall()
-            print(f'[Returned ${len(result)} row(s)]')
+            print(f'[Returned {len(result)} row(s)]')
             for row in result:
                 print('   |',' | '.join([str(v) for v in row]), '| ')
 

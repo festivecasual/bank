@@ -1,34 +1,15 @@
 <script setup>
-import { inject, ref, onMounted } from 'vue'
+import { inject, ref, onMounted, computed } from 'vue'
 import { formatCurrency } from '/src/main.js'
 
 const user = inject('user')
 
-const balance = ref(0)
 const transactions = ref([])
+const balance = computed(() => transactions.value.length > 0 ? transactions.value[0][3] : 0)
 
 const emit = defineEmits(['apiFailure'])
 
 onMounted(() => {
-    fetch('/api/balance', {
-        'method': 'GET',
-        'headers': {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + user.value.token
-        }
-    }).then((response) => {
-        if (response.ok) {
-            return response.json()
-        } else {
-            throw new Error('API Query Failed')
-        }
-    }).then((json) => {
-        balance.value = json.balance
-    }).catch((e) => {
-        emit('apiFailure')
-    })
-
     fetch('/api/transaction', {
         'method': 'GET',
         'headers': {
@@ -43,13 +24,7 @@ onMounted(() => {
             throw new Error('API Query Failed')
         }
     }).then((json) => {
-        let running = 0
-        let txns = json.data.map((r) => {
-            let r_ = r.concat([balance.value - running])
-            running += r[2]
-            return r_
-        })
-        transactions.value = txns
+        transactions.value = json.data
     }).catch((e) => {
         emit('apiFailure')
     })
