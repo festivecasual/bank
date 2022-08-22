@@ -10,7 +10,7 @@ const balance = computed(() => transactions.value.length > 0 ? transactions.valu
 const emit = defineEmits(['apiFailure'])
 
 onMounted(() => {
-    fetch('/api/transaction', {
+    fetch('/bank/api/transaction', {
         'method': 'GET',
         'headers': {
             'Accept': 'application/json',

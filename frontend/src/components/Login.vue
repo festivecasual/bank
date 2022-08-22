@@ -13,7 +13,7 @@ onMounted(() => {
 })
 
 function handleLogin() {
-    fetch('/api/session', {
+    fetch('/bank/api/session', {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
