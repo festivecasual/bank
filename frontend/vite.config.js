@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     proxy: {
-      '/api': {
+      '/bank/api': {
         target: 'http://localhost:8000',
         changeOrigin: true
       }

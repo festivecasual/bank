@@ -32,15 +32,15 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="columns">
-        <div class="column is-2">
+    <div class="is-flex is-flex-direction-row is-flex-wrap-wrap">
+        <div class="is-flex is-flex-direction-column mr-6">
             <div class="notification is-success">
                 <p><strong>Available Balance</strong></p>
                 <p class="subtitle is-2">{{ formatCurrency(balance) }}</p>
             </div>
+            <div class="is-flex-grow-1"></div>
         </div>
-        <div class="column is-1"></div>
-        <div class="column">
+        <div class="container">
             <table class="table is-fullwidth">
                 <thead>
                     <tr>
