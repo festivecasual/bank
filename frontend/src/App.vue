@@ -40,7 +40,7 @@ const logout = () => login(null, null, null)
         </div>
         <div class="column is-2">
           <div v-if="user.token !== null">
-            <p><button class="button is-link" @click="logout()">Log Out&nbsp;<strong>{{ user.username }}</strong></button></p>
+            <p><button class="button is-link mr-6" @click="logout()">Log Out&nbsp;<strong>{{ user.username }}</strong></button></p>
           </div>
         </div>
       </div>
