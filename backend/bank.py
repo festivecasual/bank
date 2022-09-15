@@ -69,6 +69,8 @@ class SessionResource:
     def on_post(self, req, resp):
         postdata = req.get_media()
         username, password = postdata.get('username'), postdata.get('password')
+        if username is None or password is None:
+            raise falcon.HTTPUnauthorized(description='Invalid login credentials')
 
         con = sqlite3.connect(db_path)
         cur = con.cursor()
@@ -104,32 +106,88 @@ class SessionResource:
         con.close()
 
 
+def get_transactions(user):
+    con = sqlite3.connect(db_path)
+    cur = con.cursor()
+
+    cur.execute('''SELECT SUM(amount) FROM trans WHERE username = ?''', (user, ))
+    total = cur.fetchone()[0]
+
+    cur.execute('''SELECT txndate, memo, amount, rowid FROM trans WHERE username = ? ORDER BY txndate DESC''', (user, ))
+    rows = cur.fetchall()
+
+    running = itertools.accumulate(rows, lambda acc, current: acc - current[2], initial=total)
+
+    con.close()
+
+    return {
+        'cols': ['txndate', 'memo', 'amount', 'rowid', 'balance'],
+        'data': [(*r, run) for r, run in zip(rows, running)],
+    }
+
+
 class TransactionResource:
     @falcon.before(require_authentication, 'standard')
+    def on_get(self, req, resp):
+        resp.media = get_transactions(req.context.username)
+
+    @falcon.before(require_authentication, 'admin')
+    def on_post(self, req, resp):
+        con = sqlite3.connect(db_path)
+        cur = con.cursor()
+
+        postdata = req.get_media()
+        txndate, memo, username, amount = [postdata.get(r) for r in ['txndate', 'memo', 'username', 'amount']]
+
+        if txndate is None or memo is None or username is None or amount is None:
+            raise falcon.HTTPBadRequest(description='Missing parameters')
+
+        cur.execute('''SELECT rowid FROM users WHERE username = ?''', (username, ))
+        rows = cur.fetchall()
+        if len(rows) == 0:
+            raise falcon.HTTPBadRequest(description='Unknown username')
+        
+        cur.execute('''INSERT INTO trans (txndate, memo, username, amount) VALUES (?, ?, ?, ?)''', (txndate, memo, username, amount))
+        con.commit()
+
+        con.close()
+
+    @falcon.before(require_authentication, 'admin')
+    def on_get_user_list(self, req, resp, username):
+        resp.media = get_transactions(username)
+
+    @falcon.before(require_authentication, 'admin')
+    def on_delete_by_id(self, req, resp, txnid):
+        con = sqlite3.connect(db_path)
+        cur = con.cursor()
+
+        cur.execute('''DELETE FROM trans WHERE rowid = ?''', (txnid, ))
+        con.commit()
+
+        con.close()
+
+
+class UserResource:
+    @falcon.before(require_authentication, 'admin')
     def on_get(self, req, resp):
         con = sqlite3.connect(db_path)
         cur = con.cursor()
 
-        cur.execute('''SELECT SUM(amount) FROM trans WHERE username = ?''', (req.context.username, ))
-        total = cur.fetchone()[0]
-
-        cur.execute('''SELECT txndate, memo, amount FROM trans WHERE username = ? ORDER BY txndate DESC''', (req.context.username, ))
+        cur.execute('''SELECT username FROM users WHERE usertype = 'standard' ''')
         rows = cur.fetchall()
 
-        running = itertools.accumulate(rows, lambda acc, current: acc - current[2], initial=total)
-
-        resp.media = {
-            'cols': ['txndate', 'memo', 'amount', 'balance'],
-            'data': [(*r, run) for r, run in zip(rows, running)],
-        }
-
         con.close()
+
+        resp.media = [r[0] for r in rows]
 
 
 def create_app():
     app = falcon.App(middleware=[TokenAuthentication()])
     app.add_route('/session', SessionResource())
     app.add_route('/transaction', TransactionResource())
+    app.add_route('/transaction/{txnid:int}', TransactionResource(), suffix="by_id")
+    app.add_route('/user/{username}/transaction', TransactionResource(), suffix="user_list")
+    app.add_route('/user', UserResource())
     return app
 
 

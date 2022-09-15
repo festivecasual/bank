@@ -43,6 +43,14 @@ class TestLogin(BankTestCase):
     def test_blank_body(self):
         result = self.simulate_post('/session')
         self.assertEqual(result.status_code, 400)
+    
+    def test_no_username(self):
+        result = self.simulate_post('/session', json={'username': 'admin'})
+        self.assertEqual(result.status_code, 401)
+    
+    def test_no_password(self):
+        result = self.simulate_post('/session', json={'password': 'password_a'})
+        self.assertEqual(result.status_code, 401)
 
 
 class TestAuthorization(BankTestCase):
@@ -104,3 +112,42 @@ class TestTransaction(BankTestCase):
     def test_no_trans(self):
         result = self.simulate_get('/transaction', headers={'Authorization': 'Bearer ' + self.throwaway_token})
         self.assertEqual(len(result.json['data']), 0)
+
+    def test_valid_new_trans(self):
+        result = self.simulate_post(
+            '/transaction',
+            headers={'Authorization': 'Bearer ' + self.admin_token},
+            json={
+                'txndate': '2022-09-09',
+                'memo': 'This is a new but valid transaction',
+                'username': 'fresh',
+                'amount': 11.11,
+            }
+        )
+        self.assertEqual(result.status_code, 200)
+
+    def test_new_trans_invalid_user(self):
+        result = self.simulate_post(
+            '/transaction',
+            headers={'Authorization': 'Bearer ' + self.admin_token},
+            json={
+                'txndate': '2022-09-09',
+                'memo': 'This is an invalid transaction',
+                'username': 'stale',
+                'amount': 11.11,
+            }
+        )
+        self.assertEqual(result.status_code, 400)
+
+    def test_new_trans_malformed_params(self):
+        result = self.simulate_post(
+            '/transaction',
+            headers={'Authorization': 'Bearer ' + self.admin_token},
+            json={
+                'txndate': '2022-09-09',
+                'memo': 'This is an invalid transaction',
+                'username': 12.12,
+                'amount': 'hi',
+            }
+        )
+        self.assertEqual(result.status_code, 400)
