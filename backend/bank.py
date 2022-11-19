@@ -113,7 +113,7 @@ def get_transactions(user):
     cur.execute('''SELECT SUM(amount) FROM trans WHERE username = ?''', (user, ))
     total = cur.fetchone()[0]
 
-    cur.execute('''SELECT txndate, memo, amount, rowid FROM trans WHERE username = ? ORDER BY txndate DESC''', (user, ))
+    cur.execute('''SELECT txndate, memo, amount, rowid FROM trans WHERE username = ? ORDER BY txndate DESC, amount ASC''', (user, ))
     rows = cur.fetchall()
 
     running = itertools.accumulate(rows, lambda acc, current: acc - current[2], initial=total)

@@ -4,11 +4,8 @@ import { ref, provide } from 'vue'
 import Account from './components/Account.vue'
 import Login from './components/Login.vue'
 
-const auth = ref({
-  'token': localStorage.getItem('token'),
-  'username': localStorage.getItem('username'),
-  'usertype': localStorage.getItem('usertype')
-})
+const auth = ref({})
+login(localStorage.getItem('token'), localStorage.getItem('username'), localStorage.getItem('usertype'))
 provide('auth', auth)
 
 const activeUser = ref(null)
