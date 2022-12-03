@@ -5,11 +5,12 @@ import Account from './components/Account.vue'
 import Login from './components/Login.vue'
 
 const auth = ref({})
-login(localStorage.getItem('token'), localStorage.getItem('username'), localStorage.getItem('usertype'))
-provide('auth', auth)
-
 const activeUser = ref(null)
 const userList = ref([])
+
+login(localStorage.getItem('token'), localStorage.getItem('username'), localStorage.getItem('usertype'))
+
+provide('auth', auth)
 
 function login(token, username, usertype) {
   auth.value = {
